@@ -46,6 +46,8 @@
 ;; the file changes.
 
 ;;; Code:
+(require 'cl-lib)
+
 (defun rando-fortune (&optional filename)
   "Takes an argument FILENAME which it presumes to be a fortune
 file (i.e. a series of entries divided with lines which just
@@ -63,12 +65,29 @@ a fortune binary you should use that and the fortune package,
 this is much much slower because it builds its index each time."
 
   (interactive)
-  (when (and (not filename)
-             (boundp 'fortune-file)
-             (file-exists-p fortune-file))
-    ;; (message "Setting filename to %s" fortune-file)
+
+  ;; Blank argument try for existing variables from fortune.el
+  (cond
+   ((and (not filename)
+         (boundp 'fortune-file)
+         (file-exists-p fortune-file))
     (setq filename fortune-file))
-      
+   ((and (not filename)
+         (boundp 'fortune-dir)
+         (file-accessible-directory-p fortune-dir))
+    (setq filename fortune-dir)))
+
+  ;; If we've been given a directory choose files at random and try
+  ;; and avoid any compiled .dat fortune files.
+  (when (file-accessible-directory-p filename)
+    (let ((file-list (cl-remove-if (lambda (k)
+                                     (or (string-match ".dat$" k)
+                                         (not (file-readable-p k))
+                                         (not (file-regular-p k))))
+                                   (directory-files filename t))))
+      (setq filename (nth (random (length file-list)) file-list))))
+
+  ;; Actually pick fortune
   (when (file-exists-p filename)
     (let ((boundaries '(1))
           (max-number nil)
@@ -122,6 +141,6 @@ this is much much slower because it builds its index each time."
           (when (called-interactively-p 'any)
             (message "%s" fort))
           
-          (format "%s" fort))))))
+          fort)))))
 
 (provide 'rando-fortune)
